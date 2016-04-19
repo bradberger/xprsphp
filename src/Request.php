@@ -5,10 +5,10 @@ namespace XPRS;
 abstract class Request
 {
 
-    public $base_url = 'https://xprs.imcreator.com';
+    private $baseURL = 'https://xprs.imcreator.com';
 
     /** The label API token as generated from the white-label dashboard */
-    public $api_token;
+    private $token;
 
     /** The license owner */
     public $nickname;
@@ -24,14 +24,27 @@ abstract class Request
     /** endpont must return a string of the API endpoint relative to the base URL */
     abstract protected function endpoint();
 
-    public function __construct($token)
+    public function __construct($token, array $params = [])
     {
-        $this->api_token = $token;
+        if (defined('XPRS_BASE_URL')) {
+            $this->setBaseURL(XPRS_BASE_URL);
+        }
+        $this->token = $token;
+        foreach ($params as $k => $v) {
+            if (property_exists($this, $k)) {
+                $this->{$k} = $v;
+            }
+        }
+    }
+
+    public function setBaseURL($url)
+    {
+        $this->baseURL = $url;
     }
 
     protected function toArray()
     {
-        $result = [];
+        $result = ['secret_wl_key' => $this->token, 'api_token' => $this->token];
         $vars = get_object_vars($this);
         $req = $this->requiredFields();
         foreach ($vars as $k => $v) {
@@ -39,6 +52,16 @@ abstract class Request
                 $result[$k] = $v;
             }
         }
+
+        unset($result['token']);
+        unset($result['baseURL']);
+
+        // Passwords need to be an md5 hash, so we check and correct here. If
+        // 32 characters in length, we can (probably) safely assume it's hashed.
+        if (isset($result['password']) && strlen($result['password']) != 32) {
+            $result['password'] = md5($result['password']);
+        }
+
         return $result;
     }
 
@@ -51,30 +74,35 @@ abstract class Request
         }
     }
 
-    protected function send()
+    public function send($baseURL = '')
     {
         $fields = $this->toArray();
         $curl = curl_init();
+        $url = sprintf('%s?%s', $baseURL ?: $this->getUrl(), http_build_query($fields));
+        logActivity(sprintf('[K2] Debug sending to: %s', $url));
         curl_setopt_array($curl, [
-            CURLOPT_URL => $this->getUrl(),
-            CURLOPT_POST => count($fields),
-            CURLOPT_POSTFIELDS => http_build_query($fields),
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HEADER => 0,
         ]);
 
         $result = curl_exec($curl);
         curl_close($curl);
 
         if ($result === false || curl_errno($curl)) {
-            return $this->result = new Response(sprintf('{"STATUS":"ERROR","MSG":"%s"}', curl_error($curl)));
+            $this->result = new Response(sprintf('{"STATUS":"ERROR","MSG":"%s"}', curl_error($curl)));
+            logActivity(sprintf('[K2] Debug: %s', json_encode($this->result)));
+            return $this->result;
         }
 
-        return $this->result = new Response($result);
+        $this->result = new Response($result);
+        logActivity(sprintf('[K2] Debug: %s', json_encode($this->result)));
+        return $this->result;
     }
 
     private function getUrl()
     {
-        return sprintf("%s/%s", $this->base_url, $this->stripPrefix($this->endpoint(), '/'));
+        return sprintf("%s/%s", $this->baseURL, $this->stripPrefix($this->endpoint(), '/'));
     }
 
     private function stripPrefix($str, $prefix)

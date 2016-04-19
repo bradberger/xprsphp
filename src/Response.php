@@ -13,12 +13,17 @@ class Response
     {
         $this->data = $str;
         foreach (json_decode($this->data, true) as $k => $v) {
-            $this->{$k} = $v;
+            $this->{strtolower($k)} = $v;
         }
     }
 
     public function error()
     {
         return strtoupper($this->status) == "ERROR";
+    }
+
+    public function message()
+    {
+        return $this->msg;
     }
 }
