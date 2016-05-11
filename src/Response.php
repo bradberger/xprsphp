@@ -13,7 +13,9 @@ class Response
     {
         $this->data = $str;
         foreach (json_decode($this->data, true) as $k => $v) {
-            $this->{strtolower($k)} = $v;
+            if (property_exists($this, strtolower($k))) {
+                $this->{strtolower($k)} = $v;
+            }
         }
     }
 
