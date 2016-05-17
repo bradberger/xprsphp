@@ -44,6 +44,7 @@ abstract class Request
 
     protected function toArray()
     {
+        $skipFields = ['token', 'baseURL'];
         $result = ['secret_wl_key' => $this->token, 'api_token' => $this->token];
         $vars = get_object_vars($this);
         $req = $this->requiredFields();
@@ -53,15 +54,9 @@ abstract class Request
             }
         }
 
-        unset($result['token']);
-        unset($result['baseURL']);
-
-        // Passwords need to be an md5 hash, so we check and correct here. If
-        // 32 characters in length, we can (probably) safely assume it's hashed.
-        if (isset($result['password']) && strlen($result['password']) != 32) {
-            $result['password'] = md5($result['password']);
+        foreach($skipFields as $k) {
+            unset($result[$k]);
         }
-
         return $result;
     }
 
