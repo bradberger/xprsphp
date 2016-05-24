@@ -45,4 +45,9 @@ abstract class Webhook
         }
         return false;
     }
+
+    public function localAPI($cmd, Array $params)
+    {
+        return (object) localAPI($cmd, $params, $this->whmcsAdminUser);
+    }
 }

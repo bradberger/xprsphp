@@ -2,26 +2,32 @@
 
 namespace XPRS;
 
+use WHMCS\User\Client;
+
 class BillUserHook extends Webhook
 {
 
     public $existingUser = true;
     public $attributes = [
         'caller'                 => '', // will always be xprs
-        'encryptedCreditCard'    => '', // encrypted credit card
-        'encryptedCvv'           => '', // encrypted Cvv
-        'card-number'            => '',
-        'card-cvc    '           => '',
-        'offer_id'               => '', // The offer id
         'card-amount-int'        => '', // the amount the user paid
-        'card-holder-first-name' => '', //
-        'card-holder-last-name'  => '', //
         'card-currency'          => '', // in currency code (i.e. USD)
-        'offer_name'             => '', // The name of the offer (i.e. 1-Year subscription)
-        'card-type'              => '', // (i.e. VISA)
-        'vbid'                   => '', // website vbid
+        'card-cvc'               => '',
         'card-expiry-month'      => '', //
         'card-expiry-year'       => '', //
+        'card-holder-first-name' => '', //
+        'card-holder-last-name'  => '', //
+        'card-number'            => '',
+        'card-type'              => '', // (i.e. VISA)
+        'coupon-used'            => '',
+        'domain'                 => '', //
+        'encryptedCreditCard'    => '', // encrypted credit card
+        'encryptedCvv'           => '', // encrypted Cvv
+        'offer_id'               => '', // The offer id
+        'offer_name'             => '', // The name of the offer (i.e. 1-Year subscription)
+        'override-currency'      => '',
+        'selected-offer-id'      => '',
+        'vbid'                   => '', // website vbid,
         'user-email'             => '', //
         'user-country'           => '', // country code (i.e. il for Israel)'
     ];
@@ -34,39 +40,34 @@ class BillUserHook extends Webhook
 
     public function getParams()
     {
-        $params = [
-            'firstname' => $this->attributes['card-holder-first-name'],
-            'lastname'  => $this->attributes['card-holder-last-name'],
-            'cardnum'   => $this->attributes['card-number'] ?: $this->attributes['encryptedCreditCard'],
-            'expdate'   => sprintf('%s%s', $this->attributes['card-expiry-month'], $this->attributes['card-expiry-year']),
-            'cardtype'  => $this->attributes['card-type'],
-            'country'   => strtoupper(trim($this->attributes['user-country'])),
+        return $this->existingUser ? [
+            'clientemail' => $this->attributes['user-email'],
+            'firstname'   => $this->attributes['card-holder-first-name'],
+            'lastname'    => $this->attributes['card-holder-last-name'],
+            'cardnum'     => $this->attributes['card-number'] ?: $this->attributes['encryptedCreditCard'],
+            'expdate'     => sprintf('%s%s', $this->attributes['card-expiry-month'], $this->attributes['card-expiry-year']),
+            'cardtype'    => $this->attributes['card-type'],
+            'country'     => strtoupper(trim($this->attributes['user-country'])),
+        ] : [
+            'email'          => $this->attributes['user-email'],
+            'skipvalidation' => true,
+            'password2'      => self::randomString(),
+            'firstname'      => $this->attributes['card-holder-first-name'],
+            'lastname'       => $this->attributes['card-holder-last-name'],
+            'cardnum'        => $this->attributes['card-number'] ?: $this->attributes['encryptedCreditCard'],
+            'expdate'        => sprintf('%s%s', $this->attributes['card-expiry-month'], $this->attributes['card-expiry-year']),
+            'cardtype'       => $this->attributes['card-type'],
+            'country'         => strtoupper(trim($this->attributes['user-country'])),
         ];
-
-        if (!$this->existingUser) {
-            $params = array_merge($params, [
-                'email' => $this->attributes['user-email'],
-                'skipvalidation' => true,
-                'password2' => self::randomString()
-            ]);
-        } else {
-            $params = array_merge($params, ['clientemail' => $this->attributes['user-email']]);
-        }
-
-        return $params;
     }
 
     public function exec(Array $params = [])
     {
-        if (!$this->existingUser) {
-            return $this->response = (object) localAPI('addclient', array_merge($this->getParams(), $params), $this->whmcsAdminUser);
+        $this->existingUser = Client::where('email', $this->attributes['user-email'])->get()->count() > 0;
+        if ($this->existingUser) {
+            return $this->response = $this->localAPI('updateclient', array_merge($this->getParams(), $params));
         }
-        $this->response = (object) localAPI('updateclient', array_merge($this->getParams(), $params), $this->whmcsAdminUser);
-        if ($this->response->result === 'error' && $this->response->message === 'Client ID Not Found') {
-            $this->existingUser = false;
-            $this->response = $this->exec($params);
-        }
-        return $this->response;
+        return $this->response = $this->localAPI('addclient', array_merge($this->getParams(), $params));
     }
 
 }
