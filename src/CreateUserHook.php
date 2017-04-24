@@ -47,6 +47,7 @@ class CreateUserHook extends Webhook
         }
 
         $params = array_merge($this->getParams(), $params);
+        var_dump($params);
         if ($this->existingUser) {
             return $this->response = $this->localAPI('updateclient', $params);
         }

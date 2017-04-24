@@ -45,7 +45,7 @@ abstract class Request
     protected function toArray()
     {
         $skipFields = ['token', 'baseURL'];
-        $result = ['secret_wl_key' => $this->token, 'api_token' => $this->token];
+        $result = ['api_token' => $this->token];
         $vars = get_object_vars($this);
         $req = $this->requiredFields();
         foreach ($vars as $k => $v) {
@@ -57,7 +57,7 @@ abstract class Request
         foreach($skipFields as $k) {
             unset($result[$k]);
         }
-        return $result;
+        return array_filter($result);
     }
 
     protected function error()
@@ -82,14 +82,14 @@ abstract class Request
         ]);
 
         $result = curl_exec($curl);
-        curl_close($curl);
-
         if ($result === false || curl_errno($curl)) {
             $this->result = new Response(sprintf('{"STATUS":"ERROR","MSG":"%s"}', curl_error($curl)));
             logActivity(sprintf('[K2] Debug: %s', json_encode($this->result)));
+            curl_close($curl);
             return $this->result;
         }
 
+        curl_close($curl);
         $this->result = new Response($result);
         logActivity(sprintf('[K2] Debug: %s', json_encode($this->result)));
         return $this->result;
